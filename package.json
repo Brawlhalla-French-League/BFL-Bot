@@ -1,0 +1,19 @@
+{
+	"name": "bfl-bot",
+	"version": "1.0.0",
+	"main": "index.js",
+	"license": "MIT",
+	"scripts": {
+		"start": "ts-node index.js",
+		"dev": "tsnd --respawn src/index.ts"
+	},
+	"dependencies": {
+		"discord.js": "^13.4.0"
+	},
+	"devDependencies": {
+		"dotenv": "^10.0.0",
+		"ts-node": "^10.4.0",
+		"ts-node-dev": "^1.1.8",
+		"typescript": "^4.5.4"
+	}
+}
