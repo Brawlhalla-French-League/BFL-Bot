@@ -11,6 +11,7 @@ const client = new Client({
 const { DISCORD_TOKEN, CATEGORY_ID } = process.env;
 
 const generatorChannelPrefix = '➕ ';
+const lobbyChannelPrefix = '⚔ ';
 
 client.on('ready', () => {
 	console.log(`Logged in as ${client.user?.tag}!`);
@@ -19,13 +20,16 @@ client.on('ready', () => {
 const isGeneratorChannel = (channel: VoiceBasedChannel) =>
 	channel.name.startsWith(generatorChannelPrefix);
 
+const isLobbyChannel = (channel: VoiceBasedChannel) =>
+	channel.name.startsWith(lobbyChannelPrefix);
+
 const isInLobbyCategory = (channel: VoiceBasedChannel) =>
 	typeof CATEGORY_ID !== 'undefined' && channel.parent?.id === CATEGORY_ID;
 
 const handleLeaveChannel = async (channel: VoiceBasedChannel) => {
 	if (!isInLobbyCategory(channel)) return;
 
-	if (isGeneratorChannel(channel)) return;
+	if (!isLobbyChannel(channel)) return;
 
 	if (channel.members.size > 0) return;
 
@@ -42,7 +46,10 @@ const handleJoinChannel = async (
 	if (!isGeneratorChannel(channel)) return;
 
 	const createdChannel = await channel.clone({
-		name: channel.name.substring(generatorChannelPrefix.length),
+		name:
+			lobbyChannelPrefix +
+			channel.name.substring(generatorChannelPrefix.length),
+		position: channel.parent?.children.size ?? 9999,
 	});
 
 	member.voice.setChannel(createdChannel);
