@@ -2,9 +2,8 @@
 	"$schema": "https://json.schemastore.org/tsconfig",
 	"display": "Default",
 	"compilerOptions": {
+		"outDir": "./dist",
 		"composite": false,
-		"declaration": true,
-		"declarationMap": true,
 		"esModuleInterop": true,
 		"forceConsistentCasingInFileNames": true,
 		"inlineSources": false,
@@ -17,5 +16,6 @@
 		"downlevelIteration": true,
 		"strictNullChecks": true
 	},
+	"include": ["src/**/*.ts"],
 	"exclude": ["node_modules"]
 }
