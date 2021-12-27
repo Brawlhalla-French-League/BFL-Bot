@@ -13,7 +13,7 @@ const { DISCORD_TOKEN, CATEGORY_ID } = process.env;
 const generatorChannelPrefix = '➕ ';
 
 client.on('ready', () => {
-	console.log(`Logged in as ${client.user.tag}!`);
+	console.log(`Logged in as ${client.user?.tag}!`);
 });
 
 const isGeneratorChannel = (channel: VoiceBasedChannel) =>
@@ -53,7 +53,7 @@ client.on('voiceStateUpdate', (oldState, newState) => {
 	if (oldState.channel?.id === newState.channel?.id) return;
 
 	if (oldState.channel?.isVoice) handleLeaveChannel(oldState.channel);
-	if (newState.channel?.isVoice)
+	if (newState.channel?.isVoice && newState.member)
 		handleJoinChannel(newState.channel, newState.member);
 });
 
