@@ -1,67 +1,73 @@
-require('dotenv').config();
+require('dotenv').config()
+import { REST } from '@discordjs/rest'
+import { Routes } from 'discord-api-types/v9'
+import { Client } from 'discord.js'
+// @ts-ignore
+import MessageReactionAdd from 'discord.js/src/client/actions/MessageReactionAdd'
+import {
+  intents as lobbyIntents,
+  commands as lobbyCommands,
+  handleSetRoomNumber,
+  handleLobby,
+} from './lobby'
+import { intents as momentsIntents, handleMoment } from './moments'
 
-import { Client, GuildMember, Intents, VoiceBasedChannel } from 'discord.js';
+const { DISCORD_CLIENT_ID, GUILD_ID, DISCORD_TOKEN } = process.env
 
-const { GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES } = Intents.FLAGS;
+const intents = [...new Set([...lobbyIntents, ...momentsIntents])]
+const commands = [...lobbyCommands]
 
-const client = new Client({
-	intents: [GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES],
-});
+const rest = new REST({ version: '9' }).setToken(DISCORD_TOKEN ?? '')
 
-const { DISCORD_TOKEN, CATEGORY_ID } = process.env;
+const initializeSlashCommands = async () => {
+  try {
+    console.log('Started refreshing application (/) commands.')
 
-const generatorChannelPrefix = '➕ ';
-const lobbyChannelPrefix = '⚔ ';
+    await rest.put(
+      Routes.applicationGuildCommands(DISCORD_CLIENT_ID ?? '', GUILD_ID ?? ''),
+      { body: commands },
+    )
+
+    console.log('Successfully reloaded application (/) commands.')
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+initializeSlashCommands()
+
+const client = new Client({ intents })
 
 client.on('ready', () => {
-	console.log(`Logged in as ${client.user?.tag}!`);
-});
-
-const isGeneratorChannel = (channel: VoiceBasedChannel) =>
-	channel.name.startsWith(generatorChannelPrefix);
-
-const isLobbyChannel = (channel: VoiceBasedChannel) =>
-	channel.name.startsWith(lobbyChannelPrefix);
-
-const isInLobbyCategory = (channel: VoiceBasedChannel) =>
-	typeof CATEGORY_ID !== 'undefined' && channel.parent?.id === CATEGORY_ID;
-
-const handleLeaveChannel = async (channel: VoiceBasedChannel) => {
-	if (!isInLobbyCategory(channel)) return;
-
-	if (!isLobbyChannel(channel)) return;
-
-	if (channel.members.size > 0) return;
-
-	await channel.delete();
-	console.log(`Deleted channel ${channel.name}`);
-};
-
-const handleJoinChannel = async (
-	channel: VoiceBasedChannel,
-	member: GuildMember
-) => {
-	if (!isInLobbyCategory(channel)) return;
-
-	if (!isGeneratorChannel(channel)) return;
-
-	const createdChannel = await channel.clone({
-		name:
-			lobbyChannelPrefix +
-			channel.name.substring(generatorChannelPrefix.length),
-		position: channel.parent?.children.size ?? 9999,
-	});
-
-	member.voice.setChannel(createdChannel);
-	console.log(`Created channel ${createdChannel.name} (${member.user.tag})`);
-};
+  console.log(`Logged in as ${client.user?.tag}!`)
+})
 
 client.on('voiceStateUpdate', (oldState, newState) => {
-	if (oldState.channel?.id === newState.channel?.id) return;
+  handleLobby(oldState, newState)
+})
 
-	if (oldState.channel?.isVoice) handleLeaveChannel(oldState.channel);
-	if (newState.channel?.isVoice && newState.member)
-		handleJoinChannel(newState.channel, newState.member);
-});
+// client.on('messageReactionAdd', (reaction, user) => {
+// 	handleMoment(reaction, user);
+// });
 
-client.login(DISCORD_TOKEN);
+client.on('interactionCreate', (interaction) => {
+  handleSetRoomNumber(interaction)
+})
+
+client.on('raw', async (event) => {
+  if (event?.t !== 'MESSAGE_REACTION_ADD') return
+
+  // Add the message to the cache.
+  const channel = client.channels.cache.get(event.d.channel_id)
+  if (!channel) return
+  if (channel.type !== 'GUILD_TEXT') return
+
+  await channel?.messages.fetch(event.d.message_id)
+  const msgReactionAdd = new MessageReactionAdd(client, true)
+
+  const { reaction, user } = msgReactionAdd.handle(event.d)
+
+  handleMoment(reaction, user)
+})
+
+client.login(DISCORD_TOKEN)
