@@ -11,7 +11,11 @@ import {
   handleLobby,
 } from './lobby'
 import { log } from './logger'
-import { intents as momentsIntents, handleMoment } from './moments'
+import {
+  intents as momentsIntents,
+  commands as momentsCommands,
+  handleMomentInteraction,
+} from './moments'
 import {
   intents as ticketsIntents,
   commands as ticketsCommands,
@@ -19,11 +23,14 @@ import {
 } from './tickets'
 
 const { DISCORD_CLIENT_ID, GUILD_ID, DISCORD_TOKEN } = process.env
+if (!DISCORD_CLIENT_ID) throw new Error('DISCORD_CLIENT_ID is not defined')
+if (!GUILD_ID) throw new Error('GUILD_ID is not defined')
+if (!DISCORD_TOKEN) throw new Error('DISCORD_TOKEN is not defined')
 
 const intents = [
   ...new Set([...lobbyIntents, ...momentsIntents, ...ticketsIntents]),
 ]
-const commands = [...lobbyCommands, ...ticketsCommands]
+const commands = [...lobbyCommands, ...momentsCommands, ...ticketsCommands]
 
 const rest = new REST({ version: '9' }).setToken(DISCORD_TOKEN ?? '')
 
@@ -57,22 +64,23 @@ client.on('voiceStateUpdate', (oldState, newState) => {
 client.on('interactionCreate', (interaction) => {
   handleSetRoomNumber(interaction)
   handleTicket(interaction)
+  handleMomentInteraction(interaction)
 })
 
-client.on('raw', async (event) => {
-  if (event?.t !== 'MESSAGE_REACTION_ADD') return
+// client.on('raw', async (event) => {
+//   if (event?.t !== 'MESSAGE_REACTION_ADD') return
 
-  // Add the message to the cache.
-  const channel = client.channels.cache.get(event.d.channel_id)
-  if (!channel) return
-  if (channel.type !== 'GUILD_TEXT') return
+//   // Add the message to the cache.
+//   const channel = client.channels.cache.get(event.d.channel_id)
+//   if (!channel) return
+//   if (channel.type !== 'GUILD_TEXT') return
 
-  await channel?.messages.fetch(event.d.message_id)
-  const msgReactionAdd = new MessageReactionAdd(client, true)
+//   await channel?.messages.fetch(event.d.message_id)
+//   const msgReactionAdd = new MessageReactionAdd(client, true)
 
-  const { reaction, user } = msgReactionAdd.handle(event.d)
+//   const { reaction, user } = msgReactionAdd.handle(event.d)
 
-  handleMoment(reaction, user)
-})
+//   handleMomentReaction(reaction, user)
+// })
 
 client.login(DISCORD_TOKEN)

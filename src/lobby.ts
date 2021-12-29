@@ -13,7 +13,6 @@ import {
 import { log } from './logger'
 
 const { LOBBY_CATEGORY_ID } = process.env
-
 if (!LOBBY_CATEGORY_ID) throw new Error('LOBBY_CATEGORY_ID is not defined')
 
 const GENERATOR_CHANNEL_PREFIX = '➕ '

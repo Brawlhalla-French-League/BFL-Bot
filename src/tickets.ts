@@ -13,10 +13,10 @@ import { log } from './logger'
 import { v4 as uuidv4 } from 'uuid'
 
 const { TICKETS_CATEGORY_ID, TICKETS_ROLE_ID } = process.env
-const TICKETS_CHANNEL_PREFIX = '📄-ticket-'
-
 if (!TICKETS_CATEGORY_ID) throw new Error('TICKETS_CATEGORY_ID is not defined')
 if (!TICKETS_ROLE_ID) throw new Error('TICKETS_ROLE_ID is not defined')
+
+const TICKETS_CHANNEL_PREFIX = '📄-ticket-'
 
 const { GUILDS, GUILD_MESSAGES } = Intents.FLAGS
 export const intents = [GUILDS, GUILD_MESSAGES]
