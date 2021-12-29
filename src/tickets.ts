@@ -8,15 +8,18 @@ import {
   MessageActionRow,
   MessageButton,
   TextChannel,
+  GuildMember,
 } from 'discord.js'
 import { log } from './logger'
 import { v4 as uuidv4 } from 'uuid'
+import { APIInteractionGuildMember } from 'discord-api-types'
 
 const { TICKETS_CATEGORY_ID, TICKETS_ROLE_ID } = process.env
 if (!TICKETS_CATEGORY_ID) throw new Error('TICKETS_CATEGORY_ID is not defined')
 if (!TICKETS_ROLE_ID) throw new Error('TICKETS_ROLE_ID is not defined')
 
 const TICKETS_CHANNEL_PREFIX = '📄-ticket-'
+const TICKETS_CHANNEL_CLOSED_PREFIX = '📄-closed-'
 
 const { GUILDS, GUILD_MESSAGES } = Intents.FLAGS
 export const intents = [GUILDS, GUILD_MESSAGES]
@@ -46,9 +49,24 @@ export const commands = [
 const isInTicketsCategory = (channel: TextChannel) =>
   channel.parent?.id === TICKETS_CATEGORY_ID
 
-const isTicketChannel = (channel: TextChannel) =>
-  isInTicketsCategory(channel) &&
-  channel.name.startsWith(TICKETS_CHANNEL_PREFIX)
+const isTicketClosed = (channel: TextChannel) =>
+  channel.name.startsWith(TICKETS_CHANNEL_CLOSED_PREFIX)
+
+const isTicketChannel = (channel: TextChannel) => {
+  if (!isInTicketsCategory(channel)) return false
+
+  return (
+    channel.name.startsWith(TICKETS_CHANNEL_PREFIX) ||
+    channel.name.startsWith(TICKETS_CHANNEL_CLOSED_PREFIX)
+  )
+}
+
+const userIsAdmin = (member: GuildMember | APIInteractionGuildMember) => {
+  const roles = member.roles
+  return Array.isArray(roles)
+    ? roles.some((role) => role === TICKETS_ROLE_ID)
+    : roles.cache.has(TICKETS_ROLE_ID)
+}
 
 const handleTicketCreation = async (interaction: CommandInteraction) => {
   const member = interaction.guild?.members.cache.get(interaction.user.id)
@@ -109,13 +127,22 @@ const handleTicketCreation = async (interaction: CommandInteraction) => {
     .addField('Sujet', topic)
     .addField('Créateur', `${member.user}`)
 
-  const closeButton = new MessageButton()
+  const closeTicketButton = new MessageButton()
     .setCustomId('ticket-close')
     .setLabel('Fermer le ticket')
-    .setEmoji('❌')
-    .setStyle('DANGER')
+    .setEmoji('✔️')
+    .setStyle('PRIMARY')
 
-  const actionRow = new MessageActionRow().addComponents(closeButton)
+  const deleteTicketButton = new MessageButton()
+    .setCustomId('ticket-delete')
+    .setLabel('Supprimer le ticket')
+    .setEmoji('❌')
+    .setStyle('SECONDARY')
+
+  const actionRow = new MessageActionRow().addComponents(
+    closeTicketButton,
+    deleteTicketButton,
+  )
 
   await channel.send({ embeds: [ticketEmbed], components: [actionRow] })
 
@@ -137,10 +164,65 @@ export const handleTicket = async (interaction: Interaction) => {
         return
       }
 
-      await channel.delete()
+      if (isTicketClosed(channel)) {
+        await interaction.reply({
+          content: 'Ce ticket est déjà fermé.',
+          ephemeral: true,
+        })
+        return
+      }
+
+      const deleteTicketButton = new MessageButton()
+        .setCustomId('ticket-delete')
+        .setLabel('Supprimer le ticket')
+        .setEmoji('❌')
+        .setStyle('SECONDARY')
+
+      const actionRow = new MessageActionRow().addComponents(deleteTicketButton)
+
+      await interaction.update({
+        components: [actionRow],
+      })
+
+      await channel.setName(
+        `${TICKETS_CHANNEL_CLOSED_PREFIX}${channel.name.slice(
+          TICKETS_CHANNEL_PREFIX.length,
+        )}`,
+      )
+
+      await channel.send('Le ticket a été fermé.')
+
       log(
         'Tickets',
         `Ticket ${channel.name} closed by ${interaction.user.username}.`,
+      )
+    }
+
+    if (interaction.customId === 'ticket-delete') {
+      const channel = interaction.channel as TextChannel
+      if (!interaction.channel || !isTicketChannel(channel)) {
+        await interaction.reply({
+          content: "Ce n'est pas un ticket.",
+          ephemeral: true,
+        })
+        return
+      }
+
+      if (!interaction.member) return
+
+      if (!userIsAdmin(interaction.member)) {
+        await interaction.reply({
+          content: "Vous n'avez pas les permissions pour supprimer ce ticket.",
+          ephemeral: true,
+        })
+        return
+      }
+
+      await channel.delete()
+
+      log(
+        'Tickets',
+        `Ticket ${channel.name} deleted by ${interaction.user.username}.`,
       )
     }
   }

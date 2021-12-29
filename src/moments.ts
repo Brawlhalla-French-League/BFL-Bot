@@ -3,18 +3,13 @@ import {
   GuildMember,
   Intents,
   Interaction,
-  Message,
   MessageEmbed,
-  MessageReaction,
-  PartialMessage,
-  PartialMessageReaction,
-  PartialUser,
-  User,
 } from 'discord.js'
 import dayjs from 'dayjs'
 import { APIAttachment, APIInteractionGuildMember } from 'discord-api-types'
 import { log } from './logger'
 import { ContextMenuCommandBuilder } from '@discordjs/builders'
+import { getMessageLink } from './util/getMessageLink'
 
 const { MOMENT_ROLE_ID, MOMENT_CHANNEL_ID } = process.env
 if (!MOMENT_ROLE_ID) throw new Error('MOMENT_ROLE_ID is not defined')
@@ -93,6 +88,8 @@ export const handleMomentInteraction = async (interaction: Interaction) => {
       `le ${messageDate} par ${user.username ?? '???'}`,
       user.avatarURL() ?? undefined,
     )
+    .setURL(getMessageLink(message))
+    .setColor('RANDOM')
 
   if (message.author.avatar)
     momentEmbed.setThumbnail(
