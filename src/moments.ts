@@ -10,6 +10,7 @@ import {
 } from 'discord.js'
 import dayjs from 'dayjs'
 import { APIAttachment } from 'discord-api-types'
+import { log } from './logger'
 
 const { GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS } = Intents.FLAGS
 
@@ -17,21 +18,19 @@ export const intents = [GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS]
 
 const { MOMENT_ROLE_ID, MOMENT_CHANNEL_ID } = process.env
 
-const getMomentChannel = (guild: Guild) => {
-  if (typeof MOMENT_CHANNEL_ID === 'undefined') return
-  return guild.channels.cache.get(MOMENT_CHANNEL_ID)
-}
+if (!MOMENT_ROLE_ID) throw new Error('MOMENT_ROLE_ID is not defined')
+if (!MOMENT_CHANNEL_ID) throw new Error('MOMENT_CHANNEL_ID is not defined')
 
-const userHasMomentRole = (member: GuildMember) => {
-  if (typeof MOMENT_ROLE_ID === 'undefined') return
-  return member.roles.cache.has(MOMENT_ROLE_ID)
-}
+const getMomentChannel = (guild: Guild) =>
+  guild.channels.cache.get(MOMENT_CHANNEL_ID)
 
-export const handleMoment = (
+const userHasMomentRole = (member: GuildMember) =>
+  member.roles.cache.has(MOMENT_ROLE_ID)
+
+export const handleMoment = async (
   reaction: MessageReaction | PartialMessageReaction,
   user: User | PartialUser,
 ) => {
-  console.log('reaction')
   if (user.bot) return
 
   const { message } = reaction
@@ -43,7 +42,6 @@ export const handleMoment = (
   const member = message.guild.members.cache.get(user.id)
 
   if (!member) return
-  console.log('asdlaskdjsalkdj')
   if (!userHasMomentRole(member)) return
 
   if (reaction.emoji.name !== '⭐') return
@@ -68,8 +66,6 @@ export const handleMoment = (
   const firstAttachment =
     (message.attachments.entries().next().value?.[1] as APIAttachment) ?? null
 
-  console.log(message.member)
-
   const momentEmbed = new MessageEmbed()
     .setTitle(`Moment de ${message.member?.displayName ?? '???'}`)
     .setImage(firstAttachment?.url)
@@ -84,7 +80,7 @@ export const handleMoment = (
   if (reaction.message.author)
     momentEmbed.addField('Auteur', reaction.message.author.toString())
 
-  console.log(momentEmbed)
+  await momentChannel.send({ embeds: [momentEmbed] })
 
-  momentChannel.send({ embeds: [momentEmbed] })
+  log('Moments', `Moment Created by ${member.displayName}`)
 }

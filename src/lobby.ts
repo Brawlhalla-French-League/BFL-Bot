@@ -10,15 +10,17 @@ import {
   SlashCommandBuilder,
   SlashCommandSubcommandBuilder,
 } from '@discordjs/builders'
-
-const { GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES } = Intents.FLAGS
-
-export const intents = [GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES]
+import { log } from './logger'
 
 const { LOBBY_CATEGORY_ID } = process.env
 
-const generatorChannelPrefix = '➕ '
-const lobbyChannelPrefix = '⚔ '
+if (!LOBBY_CATEGORY_ID) throw new Error('LOBBY_CATEGORY_ID is not defined')
+
+const GENERATOR_CHANNEL_PREFIX = '➕ '
+const LOBBY_CHANNEL_PREFIX = '⚔ '
+
+const { GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES } = Intents.FLAGS
+export const intents = [GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES]
 
 export const commands = [
   new SlashCommandBuilder()
@@ -45,14 +47,14 @@ export const commands = [
 ]
 
 const isInLobbyCategory = (channel: VoiceBasedChannel) =>
-  typeof LOBBY_CATEGORY_ID !== 'undefined' &&
   channel.parent?.id === LOBBY_CATEGORY_ID
 
 const isGeneratorChannel = (channel: VoiceBasedChannel) =>
-  isInLobbyCategory(channel) && channel.name.startsWith(generatorChannelPrefix)
+  isInLobbyCategory(channel) &&
+  channel.name.startsWith(GENERATOR_CHANNEL_PREFIX)
 
 const isLobbyChannel = (channel: VoiceBasedChannel) =>
-  isInLobbyCategory(channel) && channel.name.startsWith(lobbyChannelPrefix)
+  isInLobbyCategory(channel) && channel.name.startsWith(LOBBY_CHANNEL_PREFIX)
 
 const handleTempChannelDeletion = async (channel: VoiceBasedChannel) => {
   if (!isLobbyChannel(channel)) return
@@ -60,7 +62,7 @@ const handleTempChannelDeletion = async (channel: VoiceBasedChannel) => {
   if (channel.members.size > 0) return
 
   await channel.delete()
-  console.log(`Deleted channel ${channel.name}`)
+  log('Lobby', `Deleted channel ${channel.name}`)
 }
 
 const handleTempChannelCreation = async (
@@ -71,13 +73,13 @@ const handleTempChannelCreation = async (
 
   const createdChannel = await channel.clone({
     name:
-      lobbyChannelPrefix +
-      channel.name.substring(generatorChannelPrefix.length),
+      LOBBY_CHANNEL_PREFIX +
+      channel.name.substring(GENERATOR_CHANNEL_PREFIX.length),
     position: 9999,
   })
 
   member.voice.setChannel(createdChannel)
-  console.log(`Created channel ${createdChannel.name} (${member.user.tag})`)
+  log('Lobby', `Created channel ${createdChannel.name} (${member.user.tag})`)
 }
 
 export const handleLobby = (oldState: VoiceState, newState: VoiceState) => {
@@ -157,11 +159,12 @@ export const handleSetRoomNumber = async (
       return
     }
 
-    const newLobbyChannelName = `${
+    const strippedChannelName =
       oldRoomNumberIndex > 0
         ? voiceChannel.name.slice(0, oldRoomNumberIndex)
         : voiceChannel.name
-    } #${roomNumber.toUpperCase()}`
+
+    const newLobbyChannelName = `${strippedChannelName} #${roomNumber}`
 
     await voiceChannel.setName(newLobbyChannelName)
 
@@ -169,6 +172,10 @@ export const handleSetRoomNumber = async (
       content: `La room Brawlhalla est maintenant #${roomNumber}`,
       ephemeral: true,
     })
+    log(
+      'Lobby',
+      `Set room for channel ${strippedChannelName} to #${roomNumber}`,
+    )
     return
   }
 

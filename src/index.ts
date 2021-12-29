@@ -10,25 +10,33 @@ import {
   handleSetRoomNumber,
   handleLobby,
 } from './lobby'
+import { log } from './logger'
 import { intents as momentsIntents, handleMoment } from './moments'
+import {
+  intents as ticketsIntents,
+  commands as ticketsCommands,
+  handleTicket,
+} from './tickets'
 
 const { DISCORD_CLIENT_ID, GUILD_ID, DISCORD_TOKEN } = process.env
 
-const intents = [...new Set([...lobbyIntents, ...momentsIntents])]
-const commands = [...lobbyCommands]
+const intents = [
+  ...new Set([...lobbyIntents, ...momentsIntents, ...ticketsIntents]),
+]
+const commands = [...lobbyCommands, ...ticketsCommands]
 
 const rest = new REST({ version: '9' }).setToken(DISCORD_TOKEN ?? '')
 
 const initializeSlashCommands = async () => {
   try {
-    console.log('Started refreshing application (/) commands.')
+    log('Main', 'Refreshing application commands.')
 
     await rest.put(
       Routes.applicationGuildCommands(DISCORD_CLIENT_ID ?? '', GUILD_ID ?? ''),
       { body: commands },
     )
 
-    console.log('Successfully reloaded application (/) commands.')
+    log('Main', 'Reloaded application commands.')
   } catch (error) {
     console.error(error)
   }
@@ -39,19 +47,16 @@ initializeSlashCommands()
 const client = new Client({ intents })
 
 client.on('ready', () => {
-  console.log(`Logged in as ${client.user?.tag}!`)
+  log('Main', `Logged in as ${client.user?.tag}!`)
 })
 
 client.on('voiceStateUpdate', (oldState, newState) => {
   handleLobby(oldState, newState)
 })
 
-// client.on('messageReactionAdd', (reaction, user) => {
-// 	handleMoment(reaction, user);
-// });
-
 client.on('interactionCreate', (interaction) => {
   handleSetRoomNumber(interaction)
+  handleTicket(interaction)
 })
 
 client.on('raw', async (event) => {
