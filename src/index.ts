@@ -2,25 +2,12 @@ require('dotenv').config()
 import { REST } from '@discordjs/rest'
 import { Routes } from 'discord-api-types/v9'
 import { Client } from 'discord.js'
-// @ts-ignore
-import MessageReactionAdd from 'discord.js/src/client/actions/MessageReactionAdd'
-import {
-  intents as lobbyIntents,
-  commands as lobbyCommands,
-  handleSetRoomNumber,
-  handleLobby,
-} from './lobby'
 import { log } from './logger'
-import {
-  intents as momentsIntents,
-  commands as momentsCommands,
-  handleMomentInteraction,
-} from './moments'
-import {
-  intents as ticketsIntents,
-  commands as ticketsCommands,
-  handleTicket,
-} from './tickets'
+
+// Modules
+import { lobbyModule } from './modules/lobby'
+import { momentsModule } from './modules/moments'
+import { ticketsModule } from './modules/tickets'
 
 const { DISCORD_CLIENT_ID, GUILD_ID, DISCORD_TOKEN } = process.env
 if (!DISCORD_CLIENT_ID) throw new Error('DISCORD_CLIENT_ID is not defined')
@@ -28,9 +15,17 @@ if (!GUILD_ID) throw new Error('GUILD_ID is not defined')
 if (!DISCORD_TOKEN) throw new Error('DISCORD_TOKEN is not defined')
 
 const intents = [
-  ...new Set([...lobbyIntents, ...momentsIntents, ...ticketsIntents]),
+  ...new Set([
+    ...lobbyModule.intents,
+    ...momentsModule.intents,
+    ...ticketsModule.intents,
+  ]),
 ]
-const commands = [...lobbyCommands, ...momentsCommands, ...ticketsCommands]
+const commands = [
+  ...lobbyModule.commands,
+  ...momentsModule.commands,
+  ...ticketsModule.commands,
+]
 
 const rest = new REST({ version: '9' }).setToken(DISCORD_TOKEN ?? '')
 
@@ -57,15 +52,9 @@ client.on('ready', () => {
   log('Main', `Logged in as ${client.user?.tag}!`)
 })
 
-client.on('voiceStateUpdate', (oldState, newState) => {
-  handleLobby(oldState, newState)
-})
-
-client.on('interactionCreate', (interaction) => {
-  handleSetRoomNumber(interaction)
-  handleTicket(interaction)
-  handleMomentInteraction(interaction)
-})
+lobbyModule.setup(client)
+momentsModule.setup(client)
+ticketsModule.setup(client)
 
 // client.on('raw', async (event) => {
 //   if (event?.t !== 'MESSAGE_REACTION_ADD') return

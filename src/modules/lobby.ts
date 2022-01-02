@@ -10,18 +10,21 @@ import {
   SlashCommandBuilder,
   SlashCommandSubcommandBuilder,
 } from '@discordjs/builders'
-import { log } from './logger'
+import { log } from '../logger'
+import { createModule } from '../module'
 
-const { LOBBY_CATEGORY_ID } = process.env
+const { LOBBY_CATEGORY_ID, LOBBY_GENERATOR_CATEGORY_ID } = process.env
 if (!LOBBY_CATEGORY_ID) throw new Error('LOBBY_CATEGORY_ID is not defined')
+if (!LOBBY_GENERATOR_CATEGORY_ID)
+  throw new Error('LOBBY_GENERATOR_CATEGORY_ID is not defined')
 
 const GENERATOR_CHANNEL_PREFIX = '➕ '
 const LOBBY_CHANNEL_PREFIX = '⚔ '
 
 const { GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES } = Intents.FLAGS
-export const intents = [GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES]
+const intents = [GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES]
 
-export const commands = [
+const commands = [
   new SlashCommandBuilder()
     .setName('room')
     .setDescription(
@@ -45,11 +48,14 @@ export const commands = [
     ),
 ]
 
+const isInLobbyGeneratorCategory = (channel: VoiceBasedChannel) =>
+  channel.parent?.id === LOBBY_GENERATOR_CATEGORY_ID
+
 const isInLobbyCategory = (channel: VoiceBasedChannel) =>
   channel.parent?.id === LOBBY_CATEGORY_ID
 
 const isGeneratorChannel = (channel: VoiceBasedChannel) =>
-  isInLobbyCategory(channel) &&
+  isInLobbyGeneratorCategory(channel) &&
   channel.name.startsWith(GENERATOR_CHANNEL_PREFIX)
 
 const isLobbyChannel = (channel: VoiceBasedChannel) =>
@@ -74,6 +80,7 @@ const handleTempChannelCreation = async (
     name:
       LOBBY_CHANNEL_PREFIX +
       channel.name.substring(GENERATOR_CHANNEL_PREFIX.length),
+    parent: LOBBY_CATEGORY_ID,
     position: 9999,
   })
 
@@ -81,7 +88,7 @@ const handleTempChannelCreation = async (
   log('Lobby', `Created channel ${createdChannel.name} (${member.user.tag})`)
 }
 
-export const handleLobby = (oldState: VoiceState, newState: VoiceState) => {
+const handleLobby = (oldState: VoiceState, newState: VoiceState) => {
   if (oldState.channel?.id === newState.channel?.id) return
 
   if (oldState.channel?.isVoice) handleTempChannelDeletion(oldState.channel)
@@ -92,9 +99,7 @@ export const handleLobby = (oldState: VoiceState, newState: VoiceState) => {
 const validateRoomNumber = (roomNumber: string | null): roomNumber is string =>
   Boolean(roomNumber) && roomNumber?.length === 6 && !isNaN(Number(roomNumber))
 
-export const handleSetRoomNumber = async (
-  interaction: Interaction<CacheType>,
-) => {
+const handleSetRoomNumber = async (interaction: Interaction<CacheType>) => {
   if (!interaction.isCommand()) return
 
   if (interaction.commandName !== 'room') return
@@ -183,3 +188,13 @@ export const handleSetRoomNumber = async (
     ephemeral: true,
   })
 }
+
+export const lobbyModule = createModule(
+  'Lobby',
+  intents,
+  commands,
+  (client) => {
+    client.on('voiceStateUpdate', handleLobby)
+    client.on('interactionCreate', handleSetRoomNumber)
+  },
+)

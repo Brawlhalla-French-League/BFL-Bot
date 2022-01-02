@@ -7,18 +7,19 @@ import {
 } from 'discord.js'
 import dayjs from 'dayjs'
 import { APIAttachment, APIInteractionGuildMember } from 'discord-api-types'
-import { log } from './logger'
+import { log } from '../logger'
 import { ContextMenuCommandBuilder } from '@discordjs/builders'
-import { getMessageLink } from './util/getMessageLink'
+import { getMessageLink } from '../util/getMessageLink'
+import { createModule } from '../module'
 
 const { MOMENT_ROLE_ID, MOMENT_CHANNEL_ID } = process.env
 if (!MOMENT_ROLE_ID) throw new Error('MOMENT_ROLE_ID is not defined')
 if (!MOMENT_CHANNEL_ID) throw new Error('MOMENT_CHANNEL_ID is not defined')
 
 const { GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS } = Intents.FLAGS
-export const intents = [GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS]
+const intents = [GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS]
 
-export const commands = [
+const commands = [
   new ContextMenuCommandBuilder()
     .setName('Funny Moment')
     .setType(3)
@@ -35,7 +36,7 @@ const userHasMomentRole = (member: GuildMember | APIInteractionGuildMember) => {
     : roles.cache.has(MOMENT_ROLE_ID)
 }
 
-export const handleMomentInteraction = async (interaction: Interaction) => {
+const handleMomentInteraction = async (interaction: Interaction) => {
   if (!interaction.isMessageContextMenu()) return
   const {
     commandName,
@@ -114,3 +115,12 @@ export const handleMomentInteraction = async (interaction: Interaction) => {
     ephemeral: true,
   })
 }
+
+export const momentsModule = createModule(
+  'Moments',
+  intents,
+  commands,
+  (client) => {
+    client.on('interactionCreate', handleMomentInteraction)
+  },
+)
