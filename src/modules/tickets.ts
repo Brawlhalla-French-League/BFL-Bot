@@ -16,14 +16,8 @@ import { v4 as uuidv4 } from 'uuid'
 import { APIInteractionGuildMember } from 'discord-api-types'
 import { createModule } from '../module'
 import { CronJob } from 'cron'
-
-const { TICKETS_CATEGORY_ID, TICKETS_ROLE_ID } = process.env
-if (!TICKETS_CATEGORY_ID) throw new Error('TICKETS_CATEGORY_ID is not defined')
-if (!TICKETS_ROLE_ID) throw new Error('TICKETS_ROLE_ID is not defined')
-
-const TICKETS_CHANNEL_PREFIX = '📄-ticket-'
-const TICKETS_CHANNEL_CLOSED_PREFIX = '📄-closed-'
-const TICKET_DURATION = 1000 * 60 * 60 * 24 * 2 // 2 days
+import { fetchGuild } from '../prisma'
+import { TicketsModule } from '@prisma/client'
 
 const { GUILDS, GUILD_MESSAGES } = Intents.FLAGS
 const intents = [GUILDS, GUILD_MESSAGES]
@@ -50,34 +44,56 @@ const commands = [
     ),
 ]
 
-const isInTicketsCategory = (channel: TextChannel) =>
-  channel.parent?.id === TICKETS_CATEGORY_ID
+const fetchTicketsModule = async (guildId: string) => {
+  const { ticketsModule } = await fetchGuild(guildId, { ticketsModule: true })
 
-const isTicketClosed = (channel: TextChannel) =>
-  channel.name.startsWith(TICKETS_CHANNEL_CLOSED_PREFIX)
+  if (!ticketsModule || !ticketsModule.enabled) return null
 
-const isTicketChannel = (channel: TextChannel) => {
-  if (!isInTicketsCategory(channel)) return false
+  return ticketsModule
+}
+
+const isInTicketsCategory = (
+  { categoryId }: TicketsModule,
+  channel: TextChannel,
+) => channel.parent?.id === categoryId
+
+const isTicketClosed = (
+  { closedPrefix }: TicketsModule,
+  channel: TextChannel,
+) => channel.name.startsWith(closedPrefix ?? '')
+
+const isTicketChannel = (
+  ticketsModule: TicketsModule,
+  channel: TextChannel,
+) => {
+  if (!isInTicketsCategory(ticketsModule, channel)) return false
 
   return (
-    channel.name.startsWith(TICKETS_CHANNEL_PREFIX) ||
-    channel.name.startsWith(TICKETS_CHANNEL_CLOSED_PREFIX)
+    channel.name.startsWith(ticketsModule.prefix ?? '') ||
+    channel.name.startsWith(ticketsModule.closedPrefix ?? '')
   )
 }
 
-const userIsAdmin = (member: GuildMember | APIInteractionGuildMember) => {
+const userIsAdmin = (
+  { roleId }: TicketsModule,
+  member: GuildMember | APIInteractionGuildMember,
+) => {
   const roles = member.roles
+
+  if (!roleId) return false
+
   return Array.isArray(roles)
-    ? roles.some((role) => role === TICKETS_ROLE_ID)
-    : roles.cache.has(TICKETS_ROLE_ID)
+    ? roles.some((role) => role === roleId)
+    : roles.cache.has(roleId)
 }
 
 const handleTicketCreation = async (
+  ticketsModule: TicketsModule,
   interaction: CommandInteraction | ButtonInteraction,
 ) => {
   const member = interaction.guild?.members.cache.get(interaction.user.id)
 
-  if (!member) {
+  if (!member || !ticketsModule.categoryId || !ticketsModule.roleId) {
     await interaction.reply({
       content: 'Un problème est survenu durant la création du ticket.',
       ephemeral: true,
@@ -90,15 +106,15 @@ const handleTicketCreation = async (
   if (interaction.isCommand())
     topic = interaction.options.getString('topic') ?? ''
 
-  const ticketName = `${TICKETS_CHANNEL_PREFIX}${uuidv4().slice(0, 6)}`
+  const ticketName = `${ticketsModule.prefix ?? ''}${uuidv4().slice(0, 6)}`
 
   const channel = await interaction.guild?.channels?.create(ticketName, {
     type: 'GUILD_TEXT',
-    parent: TICKETS_CATEGORY_ID,
+    parent: ticketsModule.categoryId,
     topic,
     permissionOverwrites: [
       {
-        id: TICKETS_ROLE_ID,
+        id: ticketsModule.roleId,
         allow: tickerMembedPermissions,
         type: 'role',
       },
@@ -144,9 +160,7 @@ const handleTicketCreation = async (
     components: [actionRow],
   })
 
-  if (topic) {
-    await channel.send(`<@&${TICKETS_ROLE_ID}>`)
-  }
+  if (topic) await channel.send(`<@&${ticketsModule.roleId}>`)
 
   log(
     'Tickets',
@@ -155,10 +169,18 @@ const handleTicketCreation = async (
 }
 
 const handleTicket = async (interaction: Interaction) => {
+  const { guild } = interaction
+
+  if (!guild) return
+
+  const ticketsModule = await fetchTicketsModule(guild.id)
+
+  if (!ticketsModule) return
+
   if (interaction.isButton()) {
     if (interaction.customId === 'ticket-close') {
       const channel = interaction.channel as TextChannel
-      if (!interaction.channel || !isTicketChannel(channel)) {
+      if (!interaction.channel || !isTicketChannel(ticketsModule, channel)) {
         await interaction.reply({
           content: "Ce n'est pas un ticket.",
           ephemeral: true,
@@ -166,7 +188,7 @@ const handleTicket = async (interaction: Interaction) => {
         return
       }
 
-      if (isTicketClosed(channel)) {
+      if (isTicketClosed(ticketsModule, channel)) {
         await interaction.reply({
           content: 'Ce ticket est déjà fermé.',
           ephemeral: true,
@@ -193,11 +215,12 @@ const handleTicket = async (interaction: Interaction) => {
         components: [actionRow],
       })
 
-      await channel.setName(
-        `${TICKETS_CHANNEL_CLOSED_PREFIX}${channel.name.slice(
-          TICKETS_CHANNEL_PREFIX.length,
+      await channel.edit({
+        name: `${ticketsModule.closedPrefix ?? ''}${channel.name.slice(
+          (ticketsModule.closedPrefix ?? '').length,
         )}`,
-      )
+        position: 9999,
+      })
 
       await channel.send({
         embeds: [ticketClosedEmbed],
@@ -212,7 +235,7 @@ const handleTicket = async (interaction: Interaction) => {
 
     if (interaction.customId === 'ticket-delete') {
       const channel = interaction.channel as TextChannel
-      if (!interaction.channel || !isTicketChannel(channel)) {
+      if (!interaction.channel || !isTicketChannel(ticketsModule, channel)) {
         await interaction.reply({
           content: "Ce n'est pas un ticket.",
           ephemeral: true,
@@ -222,7 +245,7 @@ const handleTicket = async (interaction: Interaction) => {
 
       if (!interaction.member) return
 
-      if (!userIsAdmin(interaction.member)) {
+      if (!userIsAdmin(ticketsModule, interaction.member)) {
         await interaction.reply({
           content: "Vous n'avez pas les permissions pour supprimer ce ticket.",
           ephemeral: true,
@@ -239,13 +262,13 @@ const handleTicket = async (interaction: Interaction) => {
     }
 
     if (interaction.customId === 'ticket-create') {
-      await handleTicketCreation(interaction)
+      await handleTicketCreation(ticketsModule, interaction)
     }
   }
 
   if (interaction.isCommand()) {
     if (interaction.commandName === 'ticket') {
-      handleTicketCreation(interaction)
+      handleTicketCreation(ticketsModule, interaction)
       return
     }
   }
@@ -258,30 +281,49 @@ export const ticketsModule = createModule(
   (client) => {
     const ticketDeletionCron = new CronJob('0 0 * * * *', async () => {
       log('Tickets', 'Checking stale tickets...')
-      const channels = client.channels.cache.filter(
-        (channel) => channel.type === 'GUILD_TEXT' && isTicketChannel(channel),
-      )
 
-      channels.forEach(async (channel) => {
-        if (channel.type !== 'GUILD_TEXT') return
+      const guilds = client.guilds.cache
 
-        channel.messages.fetch({ limit: 1 }).then((messages) => {
-          const lastMessage = messages.first()
+      guilds.forEach(async (guild) => {
+        const channels = guild.client.channels.cache
 
-          if (!lastMessage) return
+        const ticketsModule = await fetchTicketsModule(guild.id)
 
-          console.log(
-            lastMessage.createdTimestamp + TICKET_DURATION,
-            Date.now(),
+        if (!ticketsModule) return
+
+        channels
+          .filter(
+            (channel) =>
+              channel.type === 'GUILD_TEXT' &&
+              isTicketChannel(ticketsModule, channel),
           )
+          .forEach(async (channel) => {
+            if (channel.type !== 'GUILD_TEXT') return
 
-          if (lastMessage.createdTimestamp + TICKET_DURATION > Date.now())
-            return
+            channel.messages.fetch({ limit: 1 }).then((messages) => {
+              const lastMessage = messages.first()
 
-          log('Tickets', `Ticket ${channel.name} is stale and will be deleted.`)
+              if (!lastMessage) return
 
-          channel.delete()
-        })
+              console.log(
+                lastMessage.createdTimestamp + ticketsModule.duration,
+                Date.now(),
+              )
+
+              if (
+                lastMessage.createdTimestamp + ticketsModule.duration >
+                Date.now()
+              )
+                return
+
+              log(
+                'Tickets',
+                `Ticket ${channel.name} is stale and will be deleted.`,
+              )
+
+              channel.delete()
+            })
+          })
       })
     })
     ticketDeletionCron.start()
@@ -292,8 +334,16 @@ export const ticketsModule = createModule(
       const { content } = message
       const [command, ...args] = content.split(' ')
 
+      const { guild } = message
+
+      if (!guild) return
+
+      const ticketsModule = await fetchTicketsModule(guild.id)
+
+      if (!ticketsModule) return
+
       if (message.channel.type !== 'GUILD_TEXT') return
-      if (!isTicketChannel(message.channel)) return
+      if (!isTicketChannel(ticketsModule, message.channel)) return
 
       if (command !== '--topic') return
 
@@ -306,10 +356,16 @@ export const ticketsModule = createModule(
     })
 
     client.on('messageCreate', async (message) => {
-      const { content, member, channel } = message
-      if (content !== '--ticket+') return
+      const { content, member, channel, guild } = message
+      if (content !== '--ticket+' || !guild) return
 
-      if (!member?.roles.cache.has(TICKETS_ROLE_ID)) return
+      const ticketsModule = await fetchTicketsModule(guild.id)
+
+      console.log(ticketsModule)
+
+      if (!ticketsModule || !ticketsModule.roleId) return
+
+      if (!member?.roles.cache.has(ticketsModule.roleId)) return
 
       const ticketEmbed = new MessageEmbed()
         .setTitle('Créer un ticket')

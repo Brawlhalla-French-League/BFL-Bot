@@ -21,6 +21,7 @@ const intents = [
     ...ticketsModule.intents,
   ]),
 ]
+
 const commands = [
   ...lobbyModule.commands,
   ...momentsModule.commands,
@@ -53,7 +54,7 @@ client.on('ready', () => {
 })
 
 lobbyModule.setup(client)
-// momentsModule.setup(client)
-// ticketsModule.setup(client)
+momentsModule.setup(client)
+ticketsModule.setup(client)
 
 client.login(DISCORD_TOKEN)

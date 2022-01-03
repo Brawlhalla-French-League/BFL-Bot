@@ -42,6 +42,14 @@ const commands = [
     ),
 ]
 
+const fetchLobbysModule = async (guildId: string) => {
+  const { lobbysModule } = await fetchGuild(guildId, { lobbysModule: true })
+
+  if (!lobbysModule || !lobbysModule.enabled) return null
+
+  return lobbysModule
+}
+
 const isInLobbyGeneratorCategory = (
   { generatorCategoryId }: LobbysModule,
   channel: VoiceBasedChannel,
@@ -116,21 +124,15 @@ const handleLobby = async (oldState: VoiceState, newState: VoiceState) => {
 
   if (!guildId) return
 
-  const dbGuild = await fetchGuild(guildId, {
-    lobbysModule: true,
-  })
+  const lobbysModule = await fetchLobbysModule(guildId)
 
-  if (!dbGuild.lobbysModule || !dbGuild.lobbysModule.enabled) return
+  if (!lobbysModule) return
 
   if (oldState.channel?.isVoice)
-    handleTempChannelDeletion(dbGuild.lobbysModule, oldState.channel)
+    handleTempChannelDeletion(lobbysModule, oldState.channel)
 
   if (newState.channel?.isVoice && newState.member)
-    handleTempChannelCreation(
-      dbGuild.lobbysModule,
-      newState.channel,
-      newState.member,
-    )
+    handleTempChannelCreation(lobbysModule, newState.channel, newState.member)
 }
 
 const validateRoomNumber = (roomNumber: string | null): roomNumber is string =>
@@ -145,11 +147,9 @@ const handleSetRoomNumber = async (interaction: Interaction<CacheType>) => {
 
   if (!guild) return
 
-  const dbGuild = await fetchGuild(guild.id, {
-    lobbysModule: true,
-  })
+  const lobbysModule = await fetchLobbysModule(guild.id)
 
-  if (!dbGuild.lobbysModule || !dbGuild.lobbysModule.enabled) return
+  if (!lobbysModule) return
 
   const member = guild.members.cache.get(interaction.user.id)
 
@@ -171,7 +171,7 @@ const handleSetRoomNumber = async (interaction: Interaction<CacheType>) => {
     return
   }
 
-  if (!isLobbyChannel(dbGuild.lobbysModule, voiceChannel)) {
+  if (!isLobbyChannel(lobbysModule, voiceChannel)) {
     await interaction.reply({
       content: "Vous n'êtes pas dans un Lobby.",
       ephemeral: true,

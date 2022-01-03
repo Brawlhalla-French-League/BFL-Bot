@@ -11,10 +11,8 @@ import { log } from '../logger'
 import { ContextMenuCommandBuilder } from '@discordjs/builders'
 import { getMessageLink } from '../util/getMessageLink'
 import { createModule } from '../module'
-
-const { MOMENT_ROLE_ID, MOMENT_CHANNEL_ID } = process.env
-if (!MOMENT_ROLE_ID) throw new Error('MOMENT_ROLE_ID is not defined')
-if (!MOMENT_CHANNEL_ID) throw new Error('MOMENT_CHANNEL_ID is not defined')
+import { fetchGuild } from '../prisma'
+import { MomentsModule } from '@prisma/client'
 
 const { GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS } = Intents.FLAGS
 const intents = [GUILDS, GUILD_MESSAGES, GUILD_MESSAGE_REACTIONS]
@@ -26,14 +24,29 @@ const commands = [
     .setDefaultPermission(true),
 ]
 
-const getMomentChannel = (guild: Guild) =>
-  guild.channels.cache.get(MOMENT_CHANNEL_ID)
+const fetchMomentsModule = async (guildId: string) => {
+  const { momentsModule } = await fetchGuild(guildId, { momentsModule: true })
 
-const userHasMomentRole = (member: GuildMember | APIInteractionGuildMember) => {
+  if (!momentsModule || !momentsModule.enabled) return null
+
+  return momentsModule
+}
+
+const getMomentChannel = ({ channelId }: MomentsModule, guild: Guild) => {
+  if (!channelId) return null
+  return guild.channels.cache.get(channelId)
+}
+
+const userHasMomentRole = (
+  { roleId }: MomentsModule,
+  member: GuildMember | APIInteractionGuildMember,
+) => {
   const roles = member.roles
+
+  if (!roleId) return false
   return Array.isArray(roles)
-    ? roles.some((role) => role === MOMENT_ROLE_ID)
-    : roles.cache.has(MOMENT_ROLE_ID)
+    ? roles.some((role) => role === roleId)
+    : roles.cache.has(roleId)
 }
 
 const handleMomentInteraction = async (interaction: Interaction) => {
@@ -53,11 +66,19 @@ const handleMomentInteraction = async (interaction: Interaction) => {
   if (user.bot) return
 
   if (!guild) return
-  const channel = getMomentChannel(guild)
-  if (!channel) return
+
+  const momentsModule = await fetchMomentsModule(guild.id)
+
+  if (!momentsModule) return
+
+  const momentChannel = getMomentChannel(momentsModule, guild)
+
+  console.log(momentChannel?.id)
+
+  if (!momentChannel) return
 
   if (!member) return
-  if (!userHasMomentRole(member as any)) {
+  if (!userHasMomentRole(momentsModule, member as any)) {
     log(
       'Moments',
       `${user.tag} tried to use the funny moment command, but they don't have the role.`,
@@ -68,10 +89,6 @@ const handleMomentInteraction = async (interaction: Interaction) => {
     })
     return
   }
-
-  const momentChannel = getMomentChannel(guild)
-
-  if (!momentChannel) return
 
   if (momentChannel.type !== 'GUILD_TEXT') return
 
