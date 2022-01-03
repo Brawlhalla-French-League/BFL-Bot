@@ -12,14 +12,8 @@ import {
 } from '@discordjs/builders'
 import { log } from '../logger'
 import { createModule } from '../module'
-
-const { LOBBY_CATEGORY_ID, LOBBY_GENERATOR_CATEGORY_ID } = process.env
-if (!LOBBY_CATEGORY_ID) throw new Error('LOBBY_CATEGORY_ID is not defined')
-if (!LOBBY_GENERATOR_CATEGORY_ID)
-  throw new Error('LOBBY_GENERATOR_CATEGORY_ID is not defined')
-
-const GENERATOR_CHANNEL_PREFIX = '➕ '
-const LOBBY_CHANNEL_PREFIX = '⚔ '
+import { fetchGuild } from '../prisma'
+import { LobbysModule } from '@prisma/client'
 
 const { GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES } = Intents.FLAGS
 const intents = [GUILDS, GUILD_MESSAGES, GUILD_VOICE_STATES]
@@ -48,21 +42,41 @@ const commands = [
     ),
 ]
 
-const isInLobbyGeneratorCategory = (channel: VoiceBasedChannel) =>
-  channel.parent?.id === LOBBY_GENERATOR_CATEGORY_ID
+const isInLobbyGeneratorCategory = (
+  { generatorCategoryId }: LobbysModule,
+  channel: VoiceBasedChannel,
+): boolean => {
+  if (!generatorCategoryId) return false
+  return channel.parent?.id === generatorCategoryId
+}
 
-const isInLobbyCategory = (channel: VoiceBasedChannel) =>
-  channel.parent?.id === LOBBY_CATEGORY_ID
+const isInLobbyCategory = (
+  { categoryId }: LobbysModule,
+  channel: VoiceBasedChannel,
+): boolean => {
+  if (!categoryId) return false
+  return channel.parent?.id === categoryId
+}
 
-const isGeneratorChannel = (channel: VoiceBasedChannel) =>
-  isInLobbyGeneratorCategory(channel) &&
-  channel.name.startsWith(GENERATOR_CHANNEL_PREFIX)
+const isGeneratorChannel = (
+  lobbysModule: LobbysModule,
+  channel: VoiceBasedChannel,
+): boolean =>
+  isInLobbyGeneratorCategory(lobbysModule, channel) &&
+  channel.name.startsWith(lobbysModule.generatorPrefix ?? '')
 
-const isLobbyChannel = (channel: VoiceBasedChannel) =>
-  isInLobbyCategory(channel) && channel.name.startsWith(LOBBY_CHANNEL_PREFIX)
+const isLobbyChannel = (
+  lobbysModule: LobbysModule,
+  channel: VoiceBasedChannel,
+): boolean =>
+  isInLobbyCategory(lobbysModule, channel) &&
+  channel.name.startsWith(lobbysModule.prefix ?? '')
 
-const handleTempChannelDeletion = async (channel: VoiceBasedChannel) => {
-  if (!isLobbyChannel(channel)) return
+const handleTempChannelDeletion = async (
+  lobbysModule: LobbysModule,
+  channel: VoiceBasedChannel,
+) => {
+  if (!isLobbyChannel(lobbysModule, channel)) return
 
   if (channel.members.size > 0) return
 
@@ -71,16 +85,23 @@ const handleTempChannelDeletion = async (channel: VoiceBasedChannel) => {
 }
 
 const handleTempChannelCreation = async (
+  lobbysModule: LobbysModule,
   channel: VoiceBasedChannel,
   member: GuildMember,
 ) => {
-  if (!isGeneratorChannel(channel)) return
+  if (!isGeneratorChannel(lobbysModule, channel)) return
+
+  if (!lobbysModule.categoryId) {
+    log('Lobby', `CategoryId is not defined`)
+    member.voice.disconnect('CategoryId is not defined')
+    return
+  }
 
   const createdChannel = await channel.clone({
     name:
-      LOBBY_CHANNEL_PREFIX +
-      channel.name.substring(GENERATOR_CHANNEL_PREFIX.length),
-    parent: LOBBY_CATEGORY_ID,
+      (lobbysModule.prefix ?? '') +
+      channel.name.substring((lobbysModule.generatorPrefix ?? '').length),
+    parent: lobbysModule.categoryId,
     position: 9999,
   })
 
@@ -88,12 +109,28 @@ const handleTempChannelCreation = async (
   log('Lobby', `Created channel ${createdChannel.name} (${member.user.tag})`)
 }
 
-const handleLobby = (oldState: VoiceState, newState: VoiceState) => {
+const handleLobby = async (oldState: VoiceState, newState: VoiceState) => {
   if (oldState.channel?.id === newState.channel?.id) return
 
-  if (oldState.channel?.isVoice) handleTempChannelDeletion(oldState.channel)
+  const guildId = newState.guild.id ?? oldState.guild.id
+
+  if (!guildId) return
+
+  const dbGuild = await fetchGuild(guildId, {
+    lobbysModule: true,
+  })
+
+  if (!dbGuild.lobbysModule || !dbGuild.lobbysModule.enabled) return
+
+  if (oldState.channel?.isVoice)
+    handleTempChannelDeletion(dbGuild.lobbysModule, oldState.channel)
+
   if (newState.channel?.isVoice && newState.member)
-    handleTempChannelCreation(newState.channel, newState.member)
+    handleTempChannelCreation(
+      dbGuild.lobbysModule,
+      newState.channel,
+      newState.member,
+    )
 }
 
 const validateRoomNumber = (roomNumber: string | null): roomNumber is string =>
@@ -104,7 +141,17 @@ const handleSetRoomNumber = async (interaction: Interaction<CacheType>) => {
 
   if (interaction.commandName !== 'room') return
 
-  const member = interaction.guild?.members.cache.get(interaction.user.id)
+  const { guild } = interaction
+
+  if (!guild) return
+
+  const dbGuild = await fetchGuild(guild.id, {
+    lobbysModule: true,
+  })
+
+  if (!dbGuild.lobbysModule || !dbGuild.lobbysModule.enabled) return
+
+  const member = guild.members.cache.get(interaction.user.id)
 
   if (!member) {
     await interaction.reply({
@@ -124,7 +171,7 @@ const handleSetRoomNumber = async (interaction: Interaction<CacheType>) => {
     return
   }
 
-  if (!isLobbyChannel(voiceChannel)) {
+  if (!isLobbyChannel(dbGuild.lobbysModule, voiceChannel)) {
     await interaction.reply({
       content: "Vous n'êtes pas dans un Lobby.",
       ephemeral: true,

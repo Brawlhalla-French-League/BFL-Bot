@@ -53,23 +53,7 @@ client.on('ready', () => {
 })
 
 lobbyModule.setup(client)
-momentsModule.setup(client)
-ticketsModule.setup(client)
-
-// client.on('raw', async (event) => {
-//   if (event?.t !== 'MESSAGE_REACTION_ADD') return
-
-//   // Add the message to the cache.
-//   const channel = client.channels.cache.get(event.d.channel_id)
-//   if (!channel) return
-//   if (channel.type !== 'GUILD_TEXT') return
-
-//   await channel?.messages.fetch(event.d.message_id)
-//   const msgReactionAdd = new MessageReactionAdd(client, true)
-
-//   const { reaction, user } = msgReactionAdd.handle(event.d)
-
-//   handleMomentReaction(reaction, user)
-// })
+// momentsModule.setup(client)
+// ticketsModule.setup(client)
 
 client.login(DISCORD_TOKEN)

@@ -1,0 +1,41 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model GuildProfile {
+  id            String         @id
+  lobbysModule  LobbysModule?
+  momentsModule MomentsModule?
+  ticketsModule TicketsModule?
+}
+
+model LobbysModule {
+  guildId             String       @id
+  guild               GuildProfile @relation(fields: [guildId], references: [id])
+  enabled             Boolean      @default(false)
+  generatorCategoryId String?
+  categoryId          String?
+  generatorPrefix     String?      @default("➕ ")
+  prefix              String?      @default("⚔ ")
+}
+
+model MomentsModule {
+  guildId   String       @id
+  guild     GuildProfile @relation(fields: [guildId], references: [id])
+  enabled   Boolean      @default(false)
+  roleId    String?
+  channelId String?
+}
+
+model TicketsModule {
+  guildId    String       @id
+  guild      GuildProfile @relation(fields: [guildId], references: [id])
+  enabled    Boolean      @default(false)
+  roleId     String?
+  categoryId String?
+}
