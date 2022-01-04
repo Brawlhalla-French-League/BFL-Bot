@@ -5,9 +5,10 @@ import { useAuth } from '../../providers/AuthProvider'
 import axios from 'axios'
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/router'
-import Link from 'next/link'
 import { Guild } from 'db/types'
 import { APIChannel } from 'discord-api-types'
+import { Select } from '../../components/Select'
+import { VolumeUpIcon } from '@heroicons/react/solid'
 
 const Home: NextPage = () => {
   const { user } = useAuth()
@@ -106,104 +107,118 @@ const Home: NextPage = () => {
   if (!user) return <div>Loading...</div>
 
   return (
-    <div
-      style={{
-        backgroundColor: 'rgb(15, 23, 42)',
-        color: 'white',
-        height: '100vh',
-      }}
-    >
-      <>
-        <pre>
-          {JSON.stringify(
-            guildCategories.map((category) => ({
-              name: category.name,
-              id: category.id,
-            })),
-            null,
-            2,
+    <>
+      {lobbysModule && (
+        <>
+          <h3 className="text-3xl uppercase font-bold text-gray-200">Lobbys</h3>
+          <label>
+            Activate Module
+            <input
+              type="checkbox"
+              checked={lobbysModule.enabled}
+              onChange={(e) =>
+                updateLobbysModule({ enabled: e.target.checked })
+              }
+            />
+          </label>
+          {lobbysModule.enabled && (
+            <>
+              <div className="mt-4">
+                <span className="uppercase text-gray-200 text-sm">
+                  Generator Channels Category
+                </span>
+                <Select
+                  options={guildCategories.map((category) => ({
+                    label: category.name,
+                    value: category.id,
+                  }))}
+                  selected={lobbysModule.generatorCategoryId}
+                  onSelect={(value) => {
+                    console.log('select', value)
+                    updateLobbysModule({ generatorCategoryId: value })
+                  }}
+                />
+              </div>
+              <div className="mt-4">
+                <label>
+                  <span className="uppercase text-gray-200 text-sm">
+                    Generator Channel Prefix
+                  </span>
+                  <input
+                    className="block max-w-md w-full mb-2 py-2 pl-3 pr-10 text-left bg-gray-900 font-medium uppercase rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-opacity-75 focus-visible:ring-white focus-visible:ring-offset-blue-300 focus-visible:ring-offset-2 focus-visible:border-indigo-500 sm:text-sm"
+                    value={lobbysModule.generatorPrefix}
+                    onChange={(e) =>
+                      updateLobbysModule({ generatorPrefix: e.target.value })
+                    }
+                  />
+                </label>
+                <p className="flex items-center mb-2">
+                  Example{' '}
+                  <span className="ml-2 bg-gray-700 px-2 py-1 rounded-md inline-flex items-center text-gray-300 font-medium">
+                    <VolumeUpIcon
+                      className="w-5 h-5 inline-block mr-1"
+                      aria-hidden="true"
+                    />
+                    {lobbysModule.generatorPrefix}Lobby 1v1
+                  </span>
+                </p>
+              </div>
+              <div className="mt-4">
+                <span className="uppercase text-gray-200 text-sm">
+                  Temporary Channels Category
+                </span>
+                <Select
+                  options={guildCategories.map((category) => ({
+                    label: category.name,
+                    value: category.id,
+                  }))}
+                  selected={lobbysModule.categoryId}
+                  onSelect={(value) => {
+                    console.log('select', value)
+                    updateLobbysModule({ categoryId: value })
+                  }}
+                />
+              </div>
+              <div className="mt-4">
+                <label>
+                  <span className="uppercase text-gray-200 text-sm">
+                    Temporary Channel Prefix
+                  </span>
+                  <input
+                    className="block max-w-md w-full mb-2 py-2 pl-3 pr-10 text-left bg-gray-900 font-medium uppercase rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-opacity-75 focus-visible:ring-white focus-visible:ring-offset-blue-300 focus-visible:ring-offset-2 focus-visible:border-indigo-500 sm:text-sm"
+                    value={lobbysModule.prefix}
+                    onChange={(e) =>
+                      updateLobbysModule({ prefix: e.target.value })
+                    }
+                  />
+                </label>
+                <p className="flex items-center mb-2">
+                  Example{' '}
+                  <span className="ml-2 bg-gray-700 px-2 py-1 rounded-md inline-flex items-center text-gray-300 font-medium">
+                    <VolumeUpIcon
+                      className="w-5 h-5 inline-block mr-1"
+                      aria-hidden="true"
+                    />
+                    {lobbysModule.prefix}Lobby 1v1
+                  </span>
+                </p>
+              </div>
+            </>
           )}
-        </pre>
-        {lobbysModule && (
-          <>
-            <h3>
-              Lobbys{' '}
-              <input
-                type="checkbox"
-                checked={lobbysModule.enabled}
-                onChange={(e) =>
-                  updateLobbysModule({ enabled: e.target.checked })
-                }
-              />
-            </h3>
-            <div>
-              Generator Channels Category
-              <select
-                value={lobbysModule.generatorCategoryId}
-                onChange={(e) =>
-                  updateLobbysModule({ generatorCategoryId: e.target.value })
-                }
-              >
-                <option value="">No Channel Selected</option>
-                {guildCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label>
-                Generator Channel Prefix
-                <input
-                  value={lobbysModule.generatorPrefix}
-                  onChange={(e) =>
-                    updateLobbysModule({ generatorPrefix: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <div>
-              Temporary Channels Category
-              <br />
-              (Can be the same as the Generator)
-              <select
-                value={lobbysModule.categoryId}
-                onChange={(e) =>
-                  updateLobbysModule({ categoryId: e.target.value })
-                }
-              >
-                <option value="">No Channel Selected</option>
-                {guildCategories.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label>
-                Temporary Channels Prefix
-                <input
-                  value={lobbysModule.prefix}
-                  onChange={(e) =>
-                    updateLobbysModule({ prefix: e.target.value })
-                  }
-                />
-              </label>
-            </div>
-            <pre>{JSON.stringify(lobbysModule, null, 2)}</pre>
-          </>
-        )}
-        <button onClick={handleSubmit} disabled={!hasChanges}>
-          Submit changes
-        </button>
-      </>
+        </>
+      )}
+      <button
+        className="mt-8 block px-2 py-1 rounded-sm bg-blue-600 hover:bg-blue-500 disabled:bg-gray-400 disabled:text-gray-900"
+        onClick={handleSubmit}
+        disabled={!hasChanges}
+      >
+        Submit changes
+      </button>
 
       {/* <Link href="/">
           <a>Invite bot to server</a>
         </Link> */}
-    </div>
+    </>
   )
 }
 
