@@ -4,8 +4,8 @@
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "fmt": "prisma format",
-    "migrate": "prisma migrate dev --name",
+    "format": "prisma format",
+    "migrate": "prisma migrate dev",
     "studio": "prisma studio"
   },
   "dependencies": {

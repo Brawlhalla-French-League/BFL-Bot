@@ -1,5 +1,6 @@
 require('dotenv').config()
 import { REST } from '@discordjs/rest'
+import { prisma } from 'db/prisma/client'
 import { Routes } from 'discord-api-types/v9'
 import { Client } from 'discord.js'
 import { log } from './logger'
@@ -49,8 +50,17 @@ initializeSlashCommands()
 
 const client = new Client({ intents })
 
-client.on('ready', () => {
+client.on('ready', async () => {
   log('Main', `Logged in as ${client.user?.tag}!`)
+
+  const guilds = client.guilds.cache.map((guild) => ({ id: guild.id }))
+
+  await prisma.guildProfile.createMany({
+    data: guilds,
+    skipDuplicates: true,
+  })
+
+  log('Main', 'Guilds added to database.')
 })
 
 lobbyModule.setup(client)

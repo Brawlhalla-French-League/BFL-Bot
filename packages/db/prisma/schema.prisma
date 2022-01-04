@@ -18,8 +18,8 @@ model LobbysModule {
   guildId             String       @id
   guild               GuildProfile @relation(fields: [guildId], references: [id])
   enabled             Boolean      @default(false)
-  generatorCategoryId String?
-  categoryId          String?
+  generatorCategoryId String?      @default("")
+  categoryId          String?      @default("")
   generatorPrefix     String?      @default("➕ ")
   prefix              String?      @default("⚔ ")
 }
@@ -28,16 +28,16 @@ model MomentsModule {
   guildId   String       @id
   guild     GuildProfile @relation(fields: [guildId], references: [id])
   enabled   Boolean      @default(false)
-  roleId    String?
-  channelId String?
+  roleId    String?      @default("")
+  channelId String?      @default("")
 }
 
 model TicketsModule {
   guildId      String       @id
   guild        GuildProfile @relation(fields: [guildId], references: [id])
   enabled      Boolean      @default(false)
-  roleId       String?
-  categoryId   String?
+  roleId       String?      @default("")
+  categoryId   String?      @default("")
   prefix       String?      @default("📩-ticket-")
   closedPrefix String?      @default("📩-closed-")
   duration     Int          @default(172800000) // 2 days

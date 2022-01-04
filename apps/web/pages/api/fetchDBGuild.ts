@@ -1,23 +1,18 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import axios from 'axios'
-import { supabase } from 'db/supabase/admin'
+import { prisma } from 'db/prisma/client'
 
 const isAdmin = (guild: any) => ((guild.permissions >> 3) & 1) === 1
 
 const handler = async (req: NextApiRequest, res: NextApiResponse) => {
   const { authorization } = req.headers
-  const { id } = req.query
+  const { id } = req.query as { id: string }
 
   if (!authorization) {
     return res.status(401).json({
       error: 'Unauthorized',
     })
   }
-
-  console.log({
-    id,
-    authorization,
-  })
 
   try {
     const { data } = await axios.get(
@@ -29,30 +24,32 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       },
     )
 
-    const guild = data.filter(isAdmin).find((guild: any) => guild.id === id)
+    const guild = data.find((guild: any) => guild.id === id && isAdmin(guild))
 
     if (!guild) {
       return res.status(404).json({
-        error: 'Guild not found',
+        error: 'Discord Guild not found.',
       })
     }
 
-    const { data: guildDB, error } = await supabase
-      .from('GuildProfile')
-      .select('*')
-      .eq('id', id)
-      .single()
+    const guildDB = await prisma.guildProfile.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        lobbysModule: true,
+        momentsModule: true,
+        ticketsModule: true,
+      },
+    })
 
-    if (error) throw error
+    if (!guildDB)
+      return res.status(404).json({
+        error: 'DB Guild not found.',
+      })
 
-    if (error) {
-      console.error(error)
-      return
-    }
-
-    res.status(200).json(guild)
+    res.status(200).json(guildDB)
   } catch (error) {
-    console.log(error)
+    console.error(error)
     res.status(500).json({
       error: 'Internal Server Error',
     })

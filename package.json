@@ -10,7 +10,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev --parallel",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,md}\" && yarn fmt"
+    "format": "prettier --write \"**/*.{ts,tsx,md}\" && turbo run format"
   },
   "devDependencies": {
     "prettier": "^2.5.1",
@@ -32,6 +32,15 @@
       },
       "dev": {
         "cache": false
+      },
+      "format": {
+        "cache": false,
+        "dependsOn": [
+          "^lint"
+        ],
+        "outputs": [
+          "**/*.{ts,tsx,md}"
+        ]
       }
     }
   },
