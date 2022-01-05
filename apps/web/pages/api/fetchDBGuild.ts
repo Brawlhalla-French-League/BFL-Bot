@@ -47,7 +47,7 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
         error: 'DB Guild not found.',
       })
 
-    res.status(200).json(guildDB)
+    res.status(200).json({ guild, guildDB })
   } catch (error) {
     console.error(error)
     res.status(500).json({

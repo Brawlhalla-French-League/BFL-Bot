@@ -11,21 +11,24 @@ interface Props {
   options: Option[]
   selected: string
   onSelect: (value: string) => void
+  noSelectionMessage: string
 }
 
-export const Select = ({ selected, onSelect, options }: Props) => {
+export const Select = ({
+  selected,
+  onSelect,
+  options,
+  noSelectionMessage,
+}: Props) => {
   return (
     <div className="max-w-md">
       <Listbox value={selected} onChange={onSelect}>
         <div className="relative mt-1">
           <Listbox.Button className="relative w-full mb-2 py-2 pl-3 pr-10 text-left bg-gray-900 font-medium uppercase rounded-md shadow-md cursor-default focus:outline-none focus-visible:ring-2 focus-visible:ring-opacity-75 focus-visible:ring-white focus-visible:ring-offset-blue-300 focus-visible:ring-offset-2 focus-visible:border-indigo-500 sm:text-sm">
             <span className="block truncate">
-              {
-                options.find((option) => {
-                  console.log({ option, selected })
-                  return option.value === selected
-                })?.label
-              }
+              {options.find((option) => option.value === selected)?.label ?? (
+                <span className="text-amber-500">{noSelectionMessage}</span>
+              )}
             </span>
             <span className="absolute inset-y-0 right-0 flex items-center pr-2 pointer-events-none">
               <SelectorIcon
