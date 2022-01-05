@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
 import axios from 'axios'
+import { prisma } from 'db/prisma/client'
 
 const isAdmin = (guild: any) => ((guild.permissions >> 3) & 1) === 1
 
@@ -22,9 +23,18 @@ const handler = async (req: NextApiRequest, res: NextApiResponse) => {
       },
     )
 
+    const dbGuilds = await prisma.guildProfile.findMany({
+      where: {
+        id: {
+          in: data.map((guild: any) => guild.id),
+        },
+      },
+    })
+
     const guilds = data.filter(isAdmin).map((guild: any) => ({
       name: guild.name,
       id: guild.id,
+      hasBot: dbGuilds.find((g) => g.id === guild.id),
       avatar: guild.icon
         ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}`
         : `https://eu.ui-avatars.com/api/?name=${guild.name.replace(

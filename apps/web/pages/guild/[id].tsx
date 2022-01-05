@@ -11,19 +11,27 @@ import { LobbysModuleEditor } from '../../components/LobbysModuleEditor'
 import { TicketsModuleEditor } from '../../components/TicketsModuleEditor'
 import Image from 'next/image'
 import { Tab } from '@headlessui/react'
+import { MomentsModuleEditor } from '../../components/MomentsModuleEditor'
+import Head from 'next/head'
+import Link from 'next/link'
 
 const Home: NextPage = () => {
   const { user } = useAuth()
   const [guild, setGuild] = useState<APIGuild | null>(null)
+  const [loading, setLoading] = useState(true)
+
   const [lobbysModule, setLobbysModule] = useState<LobbysModule>(undefined)
   const [ticketsModule, setTicketsModule] = useState<TicketsModule>(undefined)
   const [momentsModule, setMomentsModule] = useState<MomentsModule>(undefined)
+
   const [hasChanges, setHasChanges] = useState(false)
+
   const [guildChannels, setGuildChannels] = useState<APIChannel[]>([])
   const [guildRoles, setGuildRoles] = useState<APIRole[]>([])
   const [guildCategories, setGuildCategories] = useState<APIChannel[]>([])
 
-  const { id } = useRouter().query
+  const router = useRouter()
+  const { id } = router.query
 
   const fetchDBGuild = useCallback(async () => {
     if (!user) return
@@ -49,6 +57,7 @@ const Home: NextPage = () => {
         setMomentsModule(guildDB.momentsModule)
       })
       .catch((err) => console.error(err))
+      .finally(() => setLoading(false))
   }, [user, id])
 
   useEffect(() => {
@@ -63,6 +72,11 @@ const Home: NextPage = () => {
   const updateTicketsModule = (newModule: Partial<TicketsModule>) => {
     setHasChanges(true)
     setTicketsModule((prev) => ({ ...prev, ...newModule }))
+  }
+
+  const updateMomentsModule = (newModule: Partial<MomentsModule>) => {
+    setHasChanges(true)
+    setMomentsModule((prev) => ({ ...prev, ...newModule }))
   }
 
   const handleSubmit = async () => {
@@ -80,7 +94,7 @@ const Home: NextPage = () => {
     await axios
       .post(
         '/api/updateGuild',
-        { guild: { id, lobbysModule, ticketsModule } },
+        { guild: { id, lobbysModule, ticketsModule, momentsModule } },
         {
           headers: {
             Authorization: `Bearer ${session.provider_token}`,
@@ -123,24 +137,49 @@ const Home: NextPage = () => {
     setGuildCategories(guildChannels.filter((channel) => channel.type === 4))
   }, [guildChannels])
 
-  if (!user || !guild) return <div>Loading...</div>
+  if (loading) return <div>Loading...</div>
+
+  if (!guild)
+    return (
+      <div className="w-full h-4/6 flex flex-col items-center">
+        Bot is not in server
+        <Link href="https://discord.com/api/oauth2/authorize?client_id=901949735911424020&permissions=8&scope=bot%20applications.commands">
+          <a
+            target="_blank"
+            rel="noreferrer"
+            className="px-6 py-4 bg-blue-700 rounded-sm"
+          >
+            Invite bot to server
+          </a>
+        </Link>
+        <Link href="/">
+          <a
+            rel="noreferrer"
+            className="px-6 py-4 bg-blue-700 rounded-sm"
+            onClick={(e) => {
+              e.preventDefault()
+              router.reload()
+            }}
+          >
+            Refresh
+          </a>
+        </Link>
+      </div>
+    )
+
+  const guildAvatar = guild.icon
+    ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}`
+    : `https://eu.ui-avatars.com/api/?name=${guild.name.replace(/ /g, '+')}`
 
   return (
     <>
+      <Head>
+        <title>{guild.name} • Meyers</title>
+        <link rel="icon" href={guildAvatar} />
+      </Head>
       <div className="p-4 flex items-center ">
         <figure className="relative w-20 h-20 rounded-xl overflow-hidden shadow-lg">
-          <Image
-            src={
-              guild.icon
-                ? `https://cdn.discordapp.com/icons/${guild.id}/${guild.icon}`
-                : `https://eu.ui-avatars.com/api/?name=${guild.name.replace(
-                    / /g,
-                    '+',
-                  )}`
-            }
-            alt={guild.name}
-            layout="fill"
-          />
+          <Image src={guildAvatar} alt={guild.name} layout="fill" />
         </figure>
         <h1 className="text-2xl font-medium ml-4">{guild.name}</h1>
       </div>
@@ -178,7 +217,14 @@ const Home: NextPage = () => {
               guildRoles={guildRoles}
             />
           </Tab.Panel>
-          <Tab.Panel>Moments</Tab.Panel>
+          <Tab.Panel>
+            <MomentsModuleEditor
+              momentsModule={momentsModule}
+              updateMomentsModule={updateMomentsModule}
+              guildChannels={guildChannels}
+              guildRoles={guildRoles}
+            />
+          </Tab.Panel>
         </Tab.Panels>
       </Tab.Group>
       <button
@@ -188,10 +234,6 @@ const Home: NextPage = () => {
       >
         Submit changes
       </button>
-
-      {/* <Link href="/">
-          <a>Invite bot to server</a>
-        </Link> */}
     </>
   )
 }
