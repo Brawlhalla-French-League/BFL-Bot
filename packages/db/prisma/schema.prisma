@@ -12,6 +12,7 @@ model GuildProfile {
   lobbysModule  LobbysModule?
   momentsModule MomentsModule?
   ticketsModule TicketsModule?
+  tagsModule    TagsModule?
 }
 
 model LobbysModule {
@@ -41,4 +42,21 @@ model TicketsModule {
   prefix       String?      @default("📩-ticket-")
   closedPrefix String?      @default("📩-closed-")
   duration     Int          @default(172800000) // 2 days
+}
+
+model TagsModule {
+  guildId  String       @id
+  guild    GuildProfile @relation(fields: [guildId], references: [id])
+  enabled  Boolean      @default(false)
+  tags GuildTag[]
+}
+
+model GuildTag {
+  guildId   String       
+  tagModule TagsModule    @relation(fields: [guildId], references: [guildId])
+  name      String       @unique
+  content   String       @default("")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @default(now())
+  @@unique([guildId, name])
 }

@@ -3,13 +3,14 @@ CREATE OR REPLACE FUNCTION trigger_guild_create()
 RETURNS TRIGGER
 AS $$
 BEGIN
-  INSERT INTO public."LobbysModule" ("guildId", "categoryId", "generatorCategoryId", "enabled")
-  values(NEW.id, '', '', false) ON CONFLICT ("guildId") DO NOTHING;
-  INSERT INTO public."TicketsModule" ("guildId", "categoryId", "roleId", "enabled")
-  values(NEW.id, '', '', false) ON CONFLICT ("guildId") DO NOTHING;
-  INSERT INTO public."MomentsModule" ("guildId", "channelId", "roleId", "enabled")
-  values(NEW.id, '', '', false) ON CONFLICT ("guildId") DO NOTHING;
-
+  INSERT INTO public."LobbysModule" ("guildId")
+  values(NEW.id) ON CONFLICT ("guildId") DO NOTHING;
+  INSERT INTO public."TicketsModule" ("guildId")
+  values(NEW.id) ON CONFLICT ("guildId") DO NOTHING;
+  INSERT INTO public."MomentsModule" ("guildId")
+  values(NEW.id) ON CONFLICT ("guildId") DO NOTHING;
+  INSERT INTO public."TagsModule" ("guildId")
+  values(NEW.id) ON CONFLICT ("guildId") DO NOTHING;
 RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
